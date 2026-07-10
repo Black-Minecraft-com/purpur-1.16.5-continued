@@ -1,0 +1,109 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Github Actions <artyom030803@gmail.com>
+Date: Thu, 9 Jul 2026 15:20:51 +0300
+Subject: [PATCH] Backport additional Paper security and stability fixes
+
+
+diff --git a/src/main/java/com/destroystokyo/paper/profile/CraftPlayerProfile.java b/src/main/java/com/destroystokyo/paper/profile/CraftPlayerProfile.java
+index 3d9452892a4077e64f37424052a9e52d76dd7a6d..f00ab2a1ca43ddbfe80cd7ac21f494ef17715663 100644
+--- a/src/main/java/com/destroystokyo/paper/profile/CraftPlayerProfile.java
++++ b/src/main/java/com/destroystokyo/paper/profile/CraftPlayerProfile.java
+@@ -203,6 +203,10 @@ public class CraftPlayerProfile implements PlayerProfile {
+     }
+ 
+     private static void copyProfileProperties(GameProfile source, GameProfile target, boolean clearTarget) {
++        // Paper - do not copy a profile into itself
++        if (source == target) {
++            return;
++        }
+         PropertyMap sourceProperties = source.getProperties();
+         PropertyMap targetProperties = target.getProperties();
+         if (clearTarget) targetProperties.clear();
+diff --git a/src/main/java/net/minecraft/server/network/PlayerConnection.java b/src/main/java/net/minecraft/server/network/PlayerConnection.java
+index d4a94a96428f6734af0e1e332bc42ef0d9fe3d42..284935f80aa451d3e81ad0dbe515e32f2cc33df1 100644
+--- a/src/main/java/net/minecraft/server/network/PlayerConnection.java
++++ b/src/main/java/net/minecraft/server/network/PlayerConnection.java
+@@ -3207,6 +3207,12 @@ public class PlayerConnection implements PacketListenerPlayIn {
+     @Override
+     public void a(PacketPlayInSettings packetplayinsettings) {
+         PlayerConnectionUtils.ensureMainThread(packetplayinsettings, this, this.player.getWorldServer());
++        // Paper - do not accept invalid client settings
++        if (packetplayinsettings.viewDistance < 0) {
++            LOGGER.warn("Disconnecting " + this.player.getName() + " for invalid view distance: " + packetplayinsettings.viewDistance);
++            this.disconnect("Invalid client settings");
++            return;
++        }
+         this.player.a(packetplayinsettings);
+     }
+ 
+diff --git a/src/main/java/net/minecraft/world/entity/player/PlayerInventory.java b/src/main/java/net/minecraft/world/entity/player/PlayerInventory.java
+index 2df3ae0b72ccb5f816d55fed15396ba5a1affb7f..7ea19d1b35ffdfe9e8a460d56ff3f515bb3f3a29 100644
+--- a/src/main/java/net/minecraft/world/entity/player/PlayerInventory.java
++++ b/src/main/java/net/minecraft/world/entity/player/PlayerInventory.java
+@@ -547,19 +547,23 @@ public class PlayerInventory implements IInventory, INamableTileEntity {
+ 
+     @Override
+     public ItemStack getItem(int i) {
++        // Paper - reject negative inventory indexes
++        if (i < 0) {
++            return ItemStack.b;
++        }
+         List<ItemStack> list = null;
+ 
+-        NonNullList nonnulllist;
++        NonNullList<ItemStack> nonnulllist;
+ 
+-        for (Iterator iterator = this.f.iterator(); iterator.hasNext(); i -= nonnulllist.size()) {
+-            nonnulllist = (NonNullList) iterator.next();
++        for (Iterator<NonNullList<ItemStack>> iterator = this.f.iterator(); iterator.hasNext(); i -= nonnulllist.size()) {
++            nonnulllist = iterator.next();
+             if (i < nonnulllist.size()) {
+                 list = nonnulllist;
+                 break;
+             }
+         }
+ 
+-        return list == null ? ItemStack.b : (ItemStack) list.get(i);
++        return list == null ? ItemStack.b : list.get(i);
+     }
+ 
+     @Override
+diff --git a/src/main/java/net/minecraft/world/inventory/Container.java b/src/main/java/net/minecraft/world/inventory/Container.java
+index f92d445812f4a8481e3a9a9802737428d405a7ad..e74fcc900d517b87042350821b7c4476222a0985 100644
+--- a/src/main/java/net/minecraft/world/inventory/Container.java
++++ b/src/main/java/net/minecraft/world/inventory/Container.java
+@@ -195,9 +195,8 @@ public abstract class Container {
+     }
+ 
+     public ItemStack shiftClick(EntityHuman entityhuman, int i) {
+-        Slot slot = (Slot) this.slots.get(i);
+-
+-        return slot != null ? slot.getItem() : ItemStack.b;
++        // Paper - base containers should not expose a shift-click result
++        return ItemStack.b;
+     }
+ 
+     public ItemStack a(int i, int j, InventoryClickType inventoryclicktype, EntityHuman entityhuman) {
+@@ -437,7 +436,7 @@ public abstract class Container {
+                 }
+             } else if (inventoryclicktype == InventoryClickType.SWAP) {
+                 // Paper - ignore impossible swap slots
+-                if (i < 0 || j < 0) {
++                if (i < 0 || i >= this.slots.size() || j < 0) {
+                     return ItemStack.b;
+                 }
+                 slot2 = (Slot) this.slots.get(i);
+diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
+index 9ecad2520740cc1c8f7017eaa935460777d0c191..f7214c21a2a4e97dfe055b885b295eb47d7e8ad9 100644
+--- a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
++++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
+@@ -2047,7 +2047,8 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+ 
+     @Override
+     public int getClientViewDistance() {
+-        return (getHandle().clientViewDistance == null) ? Bukkit.getViewDistance() : getHandle().clientViewDistance;
++        // Paper - do not expose negative client view distance
++        return getHandle().clientViewDistance == null ? Bukkit.getViewDistance() : Math.max(0, getHandle().clientViewDistance);
+     }
+ 
+     // Paper start

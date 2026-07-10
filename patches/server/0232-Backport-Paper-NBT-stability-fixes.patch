@@ -1,0 +1,67 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Github Actions <artyom030803@gmail.com>
+Date: Thu, 9 Jul 2026 14:50:18 +0300
+Subject: [PATCH] Backport Paper NBT stability fixes
+
+
+diff --git a/src/main/java/net/minecraft/world/level/block/entity/TileEntityFurnace.java b/src/main/java/net/minecraft/world/level/block/entity/TileEntityFurnace.java
+index ac42fd627009a87709448354f232d8b5ed7fa6b9..77cdfe8e2926bcc9c3bd49bab4ecd3a049b111f6 100644
+--- a/src/main/java/net/minecraft/world/level/block/entity/TileEntityFurnace.java
++++ b/src/main/java/net/minecraft/world/level/block/entity/TileEntityFurnace.java
+@@ -620,7 +620,10 @@ public abstract class TileEntityFurnace extends TileEntityContainer implements I
+ 
+             world.getCraftingManager().getRecipe((MinecraftKey) entry.getKey()).ifPresent((irecipe) -> {
+                 list.add(irecipe);
+-                a(world, vec3d, entry.getIntValue(), ((RecipeCooking) irecipe).getExperience(), entityhuman, itemstack, amount); // CraftBukkit
++                // Paper - only cooking recipes have furnace experience
++                if (irecipe instanceof RecipeCooking) {
++                    a(world, vec3d, entry.getIntValue(), ((RecipeCooking) irecipe).getExperience(), entityhuman, itemstack, amount); // CraftBukkit
++                }
+             });
+         }
+ 
+diff --git a/src/main/java/net/minecraft/world/level/block/entity/TileEntityLootable.java b/src/main/java/net/minecraft/world/level/block/entity/TileEntityLootable.java
+index f0da819627035bed83561128a11059424d2b7e30..dc6809a1298dba492e6546cd897d30fa2c0ecb74 100644
+--- a/src/main/java/net/minecraft/world/level/block/entity/TileEntityLootable.java
++++ b/src/main/java/net/minecraft/world/level/block/entity/TileEntityLootable.java
+@@ -2,6 +2,7 @@ package net.minecraft.world.level.block.entity;
+ 
+ import java.util.Random;
+ import javax.annotation.Nullable;
++import org.apache.commons.lang3.StringUtils;
+ import net.minecraft.advancements.CriterionTriggers;
+ import net.minecraft.core.BaseBlockPosition;
+ import net.minecraft.core.BlockPosition;
+@@ -45,6 +46,10 @@ public abstract class TileEntityLootable extends TileEntityContainer {
+     protected boolean b(NBTTagCompound nbttagcompound) {
+         this.lootableData.loadNbt(nbttagcompound); // Paper
+         if (nbttagcompound.hasKeyOfType("LootTable", 8)) {
++            // Paper - ignore blank loot table keys
++            if (StringUtils.isBlank(nbttagcompound.getString("LootTable"))) {
++                return false;
++            }
+             this.lootTable = new MinecraftKey(nbttagcompound.getString("LootTable"));
+             try { org.bukkit.craftbukkit.util.CraftNamespacedKey.fromMinecraft(this.lootTable); } catch (IllegalArgumentException ex) { this.lootTable = null; } // Paper - validate
+             this.lootTableSeed = nbttagcompound.getLong("LootTableSeed");
+diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSkull.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSkull.java
+index 6db0d35eba647a0e81ca464fa52dc4a404ddd2ab..7a06166da153dc32ffb13aa53639a86d60809dc5 100644
+--- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSkull.java
++++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSkull.java
+@@ -10,6 +10,7 @@ import net.minecraft.nbt.NBTTagCompound;
+ import net.minecraft.world.level.block.entity.TileEntitySkull;
+ import com.destroystokyo.paper.profile.CraftPlayerProfile;
+ import com.destroystokyo.paper.profile.PlayerProfile;
++import org.apache.commons.lang3.StringUtils;
+ import org.bukkit.Bukkit;
+ import org.bukkit.Material;
+ import org.bukkit.OfflinePlayer;
+@@ -47,7 +48,8 @@ class CraftMetaSkull extends CraftMetaItem implements SkullMeta {
+ 
+         if (tag.hasKeyOfType(SKULL_OWNER.NBT, CraftMagicNumbers.NBT.TAG_COMPOUND)) {
+             this.setProfile(GameProfileSerializer.deserialize(tag.getCompound(SKULL_OWNER.NBT)));
+-        } else if (tag.hasKeyOfType(SKULL_OWNER.NBT, CraftMagicNumbers.NBT.TAG_STRING) && !tag.getString(SKULL_OWNER.NBT).isEmpty()) {
++        // Paper - ignore blank skull owner strings
++        } else if (tag.hasKeyOfType(SKULL_OWNER.NBT, CraftMagicNumbers.NBT.TAG_STRING) && !StringUtils.isBlank(tag.getString(SKULL_OWNER.NBT))) {
+             this.setProfile(new GameProfile(null, tag.getString(SKULL_OWNER.NBT)));
+         }
+     }

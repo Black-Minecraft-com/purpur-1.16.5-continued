@@ -1,0 +1,65 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Github Actions <artyom030803@gmail.com>
+Date: Thu, 9 Jul 2026 14:52:11 +0300
+Subject: [PATCH] Backport Paper tripwire state fix
+
+
+diff --git a/src/main/java/net/minecraft/world/level/block/BlockTripwire.java b/src/main/java/net/minecraft/world/level/block/BlockTripwire.java
+index 46a4dd932d84bf72c1837e36add56f219d6b5e77..27eea36f6e0534c84563b0e2dd4440227f8daa42 100644
+--- a/src/main/java/net/minecraft/world/level/block/BlockTripwire.java
++++ b/src/main/java/net/minecraft/world/level/block/BlockTripwire.java
+@@ -66,14 +66,16 @@ public class BlockTripwire extends Block {
+     @Override
+     public void onPlace(IBlockData iblockdata, World world, BlockPosition blockposition, IBlockData iblockdata1, boolean flag) {
+         if (!iblockdata1.a(iblockdata.getBlock())) {
+-            this.a(world, blockposition, iblockdata);
++            // Paper - keep hook source state consistent
++            this.updateSource(world, blockposition, iblockdata);
+         }
+     }
+ 
+     @Override
+     public void remove(IBlockData iblockdata, World world, BlockPosition blockposition, IBlockData iblockdata1, boolean flag) {
+         if (!flag && !iblockdata.a(iblockdata1.getBlock())) {
+-            this.a(world, blockposition, (IBlockData) iblockdata.set(BlockTripwire.POWERED, true));
++            // Paper - removed tripwire is no longer a valid hook source
++            this.a(world, blockposition, (IBlockData) iblockdata.set(BlockTripwire.POWERED, true), true);
+         }
+     }
+ 
+@@ -86,7 +88,12 @@ public class BlockTripwire extends Block {
+         super.a(world, blockposition, iblockdata, entityhuman);
+     }
+ 
+-    private void a(World world, BlockPosition blockposition, IBlockData iblockdata) {
++    // Paper - hook source state consistency helper
++    private void updateSource(World world, BlockPosition blockposition, IBlockData iblockdata) {
++        this.a(world, blockposition, iblockdata, false);
++    }
++
++    private void a(World world, BlockPosition blockposition, IBlockData iblockdata, boolean beingRemoved) {
+         EnumDirection[] aenumdirection = new EnumDirection[]{EnumDirection.SOUTH, EnumDirection.WEST};
+         int i = aenumdirection.length;
+         int j = 0;
+@@ -102,7 +109,10 @@ public class BlockTripwire extends Block {
+ 
+                     if (iblockdata1.a((Block) this.k)) {
+                         if (iblockdata1.get(BlockTripwireHook.FACING) == enumdirection.opposite()) {
+-                            this.k.a(world, blockposition1, iblockdata1, false, true, k, iblockdata);
++                            // Paper - do not count removed tripwire as present
++                            int distance = beingRemoved ? -1 : k;
++                            IBlockData self = beingRemoved ? null : iblockdata;
++                            this.k.a(world, blockposition1, iblockdata1, false, true, distance, self);
+                         }
+                     } else if (iblockdata1.a((Block) this)) {
+                         ++k;
+@@ -190,7 +200,8 @@ public class BlockTripwire extends Block {
+         if (flag1 != flag) {
+             iblockdata = (IBlockData) iblockdata.set(BlockTripwire.POWERED, flag1);
+             world.setTypeAndData(blockposition, iblockdata, 3);
+-            this.a(world, blockposition, iblockdata);
++            // Paper - keep hook source state consistent
++            this.updateSource(world, blockposition, iblockdata);
+         }
+ 
+         if (flag1) {

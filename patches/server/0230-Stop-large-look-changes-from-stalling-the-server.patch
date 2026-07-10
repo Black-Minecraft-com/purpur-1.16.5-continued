@@ -1,0 +1,73 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Github Actions <artyom030803@gmail.com>
+Date: Thu, 9 Jul 2026 15:20:50 +0300
+Subject: [PATCH] Stop large look changes from stalling the server
+
+
+diff --git a/src/main/java/net/minecraft/world/entity/EntityLiving.java b/src/main/java/net/minecraft/world/entity/EntityLiving.java
+index 158388410ea14b2df95635914844952bd52b8f87..9a156d1bcfc2b8ddc6cbea0a4ea348760668dd2c 100644
+--- a/src/main/java/net/minecraft/world/entity/EntityLiving.java
++++ b/src/main/java/net/minecraft/world/entity/EntityLiving.java
+@@ -2696,37 +2696,11 @@ public abstract class EntityLiving extends Entity {
+         this.world.getMethodProfiler().exit();
+         this.world.getMethodProfiler().enter("rangeChecks");
+ 
+-        while (this.yaw - this.lastYaw < -180.0F) {
+-            this.lastYaw -= 360.0F;
+-        }
+-
+-        while (this.yaw - this.lastYaw >= 180.0F) {
+-            this.lastYaw += 360.0F;
+-        }
+-
+-        while (this.aA - this.aB < -180.0F) {
+-            this.aB -= 360.0F;
+-        }
+-
+-        while (this.aA - this.aB >= 180.0F) {
+-            this.aB += 360.0F;
+-        }
+-
+-        while (this.pitch - this.lastPitch < -180.0F) {
+-            this.lastPitch -= 360.0F;
+-        }
+-
+-        while (this.pitch - this.lastPitch >= 180.0F) {
+-            this.lastPitch += 360.0F;
+-        }
+-
+-        while (this.aC - this.aD < -180.0F) {
+-            this.aD -= 360.0F;
+-        }
+-
+-        while (this.aC - this.aD >= 180.0F) {
+-            this.aD += 360.0F;
+-        }
++        // Paper - stop large pitch and yaw changes from stalling the server
++        this.lastYaw += Math.round((this.yaw - this.lastYaw) / 360.0F) * 360.0F;
++        this.aB += Math.round((this.aA - this.aB) / 360.0F) * 360.0F;
++        this.lastPitch += Math.round((this.pitch - this.lastPitch) / 360.0F) * 360.0F;
++        this.aD += Math.round((this.aC - this.aD) / 360.0F) * 360.0F;
+ 
+         this.world.getMethodProfiler().exit();
+         this.aL += f2;
+diff --git a/src/main/java/net/minecraft/world/entity/projectile/IProjectile.java b/src/main/java/net/minecraft/world/entity/projectile/IProjectile.java
+index 8df2b646df701b4d21f956b9870d7c09c13e2b6d..bdbabc8e75170c82f9b14a1dd58f5c173bbc203a 100644
+--- a/src/main/java/net/minecraft/world/entity/projectile/IProjectile.java
++++ b/src/main/java/net/minecraft/world/entity/projectile/IProjectile.java
+@@ -213,13 +213,8 @@ public abstract class IProjectile extends Entity {
+     }
+ 
+     protected static float e(float f, float f1) {
+-        while (f1 - f < -180.0F) {
+-            f -= 360.0F;
+-        }
+-
+-        while (f1 - f >= 180.0F) {
+-            f += 360.0F;
+-        }
++        // Paper - stop large look changes from stalling the server
++        f += Math.round((f1 - f) / 360.0F) * 360.0F;
+ 
+         return MathHelper.g(0.2F, f, f1);
+     }

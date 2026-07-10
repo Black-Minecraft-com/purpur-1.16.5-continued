@@ -1,0 +1,108 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Github Actions <artyom030803@gmail.com>
+Date: Thu, 9 Jul 2026 14:41:39 +0300
+Subject: [PATCH] Add Shield crash fix backports
+
+
+diff --git a/src/main/java/net/minecraft/server/network/PlayerConnection.java b/src/main/java/net/minecraft/server/network/PlayerConnection.java
+index 4aad3561a5aae784be19da19643f33175dcbfb4c..d4a94a96428f6734af0e1e332bc42ef0d9fe3d42 100644
+--- a/src/main/java/net/minecraft/server/network/PlayerConnection.java
++++ b/src/main/java/net/minecraft/server/network/PlayerConnection.java
+@@ -2649,6 +2649,11 @@ public class PlayerConnection implements PacketListenerPlayIn {
+                     return;
+                 }
+ 
++                // Paper - ignore impossible inventory slot click
++                if (packetplayinwindowclick.c() >= this.player.activeContainer.slots.size()) {
++                    return;
++                }
++
+                 InventoryView inventory = this.player.activeContainer.getBukkitView();
+                 SlotType type = inventory.getSlotType(packetplayinwindowclick.c());
+ 
+@@ -2737,6 +2742,11 @@ public class PlayerConnection implements PacketListenerPlayIn {
+                         break;
+                     case SWAP:
+                         if ((packetplayinwindowclick.d() >= 0 && packetplayinwindowclick.d() < 9) || packetplayinwindowclick.d() == 40) {
++                            // Paper - ignore negative swap slot
++                            if (packetplayinwindowclick.c() < 0) {
++                                action = InventoryAction.NOTHING;
++                                break;
++                            }
+                             click = (packetplayinwindowclick.d() == 40) ? ClickType.SWAP_OFFHAND : ClickType.NUMBER_KEY;
+                             Slot clickedSlot = this.player.activeContainer.getSlot(packetplayinwindowclick.c());
+                             if (clickedSlot.isAllowed(player)) {
+diff --git a/src/main/java/net/minecraft/world/inventory/Container.java b/src/main/java/net/minecraft/world/inventory/Container.java
+index b58ec4abff2840556eb06e08b241a2eaa85c2c7f..f92d445812f4a8481e3a9a9802737428d405a7ad 100644
+--- a/src/main/java/net/minecraft/world/inventory/Container.java
++++ b/src/main/java/net/minecraft/world/inventory/Container.java
+@@ -191,7 +191,7 @@ public abstract class Container {
+     }
+ 
+     public Slot getSlot(int i) {
+-        return (Slot) this.slots.get(i);
++        return this.slots.get(i);
+     }
+ 
+     public ItemStack shiftClick(EntityHuman entityhuman, int i) {
+@@ -436,6 +436,10 @@ public abstract class Container {
+                     }
+                 }
+             } else if (inventoryclicktype == InventoryClickType.SWAP) {
++                // Paper - ignore impossible swap slots
++                if (i < 0 || j < 0) {
++                    return ItemStack.b;
++                }
+                 slot2 = (Slot) this.slots.get(i);
+                 itemstack2 = playerinventory.getItem(j);
+                 itemstack1 = slot2.getItem();
+diff --git a/src/main/java/net/minecraft/world/level/MobSpawnerAbstract.java b/src/main/java/net/minecraft/world/level/MobSpawnerAbstract.java
+index b65609bab36650c46e9dabdd25a139ae2af9d83a..b0efedfb75f0dfef8cad35ba4895a9bff3e324c0 100644
+--- a/src/main/java/net/minecraft/world/level/MobSpawnerAbstract.java
++++ b/src/main/java/net/minecraft/world/level/MobSpawnerAbstract.java
+@@ -74,6 +74,8 @@ public abstract class MobSpawnerAbstract {
+     }
+ 
+     public void c() {
++        // Paper - ignore impossible spawn tick
++        if (this.spawnCount <= 0 || this.maxNearbyEntities <= 0) return;
+         // Paper start - Configurable mob spawner tick rate
+         if (spawnDelay > 0 && --tickDelay > 0) return;
+         tickDelay = this.a().paperConfig.mobSpawnerTickRate;
+diff --git a/src/main/java/net/minecraft/world/level/block/BlockTrapdoor.java b/src/main/java/net/minecraft/world/level/block/BlockTrapdoor.java
+index 75bf5b65ca6e853fa1a6b27dd632baa3e5c33eb9..0818b4e2c0a4fcd0de3d668b5d86838c9b8da52e 100644
+--- a/src/main/java/net/minecraft/world/level/block/BlockTrapdoor.java
++++ b/src/main/java/net/minecraft/world/level/block/BlockTrapdoor.java
+@@ -6,6 +6,8 @@ import net.minecraft.core.EnumDirection;
+ import net.minecraft.world.EnumHand;
+ import net.minecraft.world.EnumInteractionResult;
+ import net.minecraft.world.entity.player.EntityHuman;
++import net.minecraft.world.item.ItemStack;
++import net.minecraft.world.item.Items;
+ import net.minecraft.world.item.context.BlockActionContext;
+ import net.minecraft.world.level.GeneratorAccess;
+ import net.minecraft.world.level.IBlockAccess;
+@@ -128,6 +130,23 @@ public class BlockTrapdoor extends BlockFacingHorizontal implements IBlockWaterl
+                     flag1 = eventRedstone.getNewCurrent() > 0;
+                 }
+                 // CraftBukkit end
++
++                // Paper - break redstone on trapdoors early
++                boolean open = iblockdata.get(BlockTrapdoor.OPEN) != flag1;
++                if (flag1 && open) {
++                    BlockPosition upPos = blockposition.up();
++                    IBlockData up = world.getType(upPos);
++                    if (up.getBlock() instanceof BlockRedstoneWire) {
++                        boolean removed = world.setTypeAndData(upPos, Blocks.AIR.getBlockData(), 2);
++                        if (removed) {
++                            Block.dropItem(world, upPos, new ItemStack(Items.REDSTONE));
++                        }
++                        if (!removed && world.getType(blockposition) != iblockdata) {
++                            return;
++                        }
++                    }
++                }
++
+                 if ((Boolean) iblockdata.get(BlockTrapdoor.OPEN) != flag1) {
+                     iblockdata = (IBlockData) iblockdata.set(BlockTrapdoor.OPEN, flag1);
+                     this.a((EntityHuman) null, world, blockposition, flag1);

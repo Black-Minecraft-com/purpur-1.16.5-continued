@@ -1,0 +1,23 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Github Actions <artyom030803@gmail.com>
+Date: Thu, 9 Jul 2026 13:56:11 +0300
+Subject: [PATCH] Remove Java version check
+
+
+diff --git a/src/main/java/org/bukkit/craftbukkit/Main.java b/src/main/java/org/bukkit/craftbukkit/Main.java
+index 73513638dd024cb1cdd49c705921f0bcf1935968..5aecbb1802539a2d2a7e335a50bb2853cfea6a84 100644
+--- a/src/main/java/org/bukkit/craftbukkit/Main.java
++++ b/src/main/java/org/bukkit/craftbukkit/Main.java
+@@ -232,12 +232,6 @@ public class Main {
+                 return;
+             }
+ 
+-            float javaVersion = Float.parseFloat(System.getProperty("java.class.version"));
+-            if (javaVersion > 60.0) {
+-                System.err.println("Unsupported Java detected (" + javaVersion + "). Only up to Java 16 is supported.");
+-                if (!Boolean.getBoolean("Paper.IgnoreJavaVersion")) return; // Paper
+-            }
+-
+             try {
+                 // Paper start - Handled by TerminalConsoleAppender
+                 /*

@@ -1,0 +1,33 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Github Actions <artyom030803@gmail.com>
+Date: Thu, 9 Jul 2026 13:56:04 +0300
+Subject: [PATCH] Skip empty event dispatch
+
+
+diff --git a/src/main/java/org/bukkit/plugin/SimplePluginManager.java b/src/main/java/org/bukkit/plugin/SimplePluginManager.java
+index 0e25119564dfa9cb12f3c5dc5f653d7f2c147a9d..5a6310212572b953ecc3966a6713bd4d065d9910 100644
+--- a/src/main/java/org/bukkit/plugin/SimplePluginManager.java
++++ b/src/main/java/org/bukkit/plugin/SimplePluginManager.java
+@@ -605,6 +605,12 @@ public final class SimplePluginManager implements PluginManager {
+      */
+     @Override
+     public void callEvent(@NotNull Event event) {
++        // Plazma - skip event dispatch when there are no listeners
++        // Plazma start - Skip event if no listeners
++        HandlerList handlers = event.getHandlers();
++        RegisteredListener[] listeners = handlers.getRegisteredListeners();
++        if (listeners.length == 0) return;
++        // Plazma end
+         // Paper - replace callEvent by merging to below method
+         if (event.isAsynchronous() && server.isPrimaryThread()) {
+             throw new IllegalStateException(event.getEventName() + " may only be triggered asynchronously.");
+@@ -612,9 +618,6 @@ public final class SimplePluginManager implements PluginManager {
+             throw new IllegalStateException(event.getEventName() + " may only be triggered synchronously.");
+         }
+ 
+-        HandlerList handlers = event.getHandlers();
+-        RegisteredListener[] listeners = handlers.getRegisteredListeners();
+-
+         for (RegisteredListener registration : listeners) {
+             if (!registration.getPlugin().isEnabled()) {
+                 continue;
